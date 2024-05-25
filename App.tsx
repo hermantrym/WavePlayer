@@ -1,118 +1,117 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
+import React, { useRef, useState } from "react"
+import { SafeAreaView, StyleSheet, View, Button } from "react-native"
+import AudioRecorderPlayer, {
+  AVEncoderAudioQualityIOSType,
+  AVEncodingOption,
+  AudioEncoderAndroidType,
+  AudioSet,
+  AudioSourceAndroidType,
+} from "react-native-audio-recorder-player"
 
-import React from 'react';
-import type {PropsWithChildren} from 'react';
+import { useAudioPlayer } from "./lib/@simform-solutions/react-native-audio-waveform/src/hooks"
+import RNFetchBlob from "rn-fetch-blob"
 import {
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  useColorScheme,
-  View,
-} from 'react-native';
-
+  IWaveformRef,
+  Waveform,
+} from "./lib/@simform-solutions/react-native-audio-waveform"
 import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
+  IPreparePlayer,
+  ISeekPlayer,
+} from "./lib/@simform-solutions/react-native-audio-waveform/lib/types/AudioWaveformTypes"
 
-type SectionProps = PropsWithChildren<{
-  title: string;
-}>;
+const audioRecorderPlayer = new AudioRecorderPlayer()
 
-function Section({children, title}: SectionProps): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
+function App() {
+  const waveformRef = useRef<IWaveformRef>(null)
+  const [audioPath, setAudioPath] = useState<string | null>(null)
+  const {
+    playPlayer,
+    pausePlayer,
+    stopPlayer,
+    seekToPlayer,
+    setVolume,
+    preparePlayer,
+  } = useAudioPlayer()
+
+  const startRecording = async () => {
+    const dirs = RNFetchBlob.fs.dirs
+    const path = `${dirs.CacheDir}/test.m4a`
+    const audioSet: AudioSet = {
+      AudioEncoderAndroid: AudioEncoderAndroidType.AAC,
+      AudioSourceAndroid: AudioSourceAndroidType.MIC,
+      AVEncoderAudioQualityKeyIOS: AVEncoderAudioQualityIOSType.high,
+      AVNumberOfChannelsKeyIOS: 2,
+      AVFormatIDKeyIOS: AVEncodingOption.aac,
+    }
+    const uri = await audioRecorderPlayer.startRecorder(path, audioSet)
+    audioRecorderPlayer.addRecordBackListener((e) => {
+      console.log("Recording: ", e.currentPosition)
+    })
+    console.log(`Recording started at ${uri}`)
+  }
+
+  const stopRecording = async () => {
+    const result = await audioRecorderPlayer.stopRecorder()
+    audioRecorderPlayer.removeRecordBackListener()
+    setAudioPath(result)
+    console.log(`Recording stopped and saved at ${result}`)
+  }
+
+  const playAudio = async () => {
+    if (audioPath) {
+      await preparePlayer({ path: audioPath } as IPreparePlayer)
+      await playPlayer({ finishMode: undefined, path: "", playerKey: "" })
+    }
+  }
+
+  const pauseAudio = () => {
+    pausePlayer({
+      playerKey: "",
+    })
+  }
+
+  const stopAudio = () => {
+    stopPlayer({ playerKey: "" })
+  }
+
+  const seekAudio = (position: number) => {
+    seekToPlayer({ position } as unknown as ISeekPlayer)
+  }
+
+  const adjustVolume = (volume: number) => {
+    setVolume(volume)
+  }
+
   return (
-    <View style={styles.sectionContainer}>
-      <Text
-        style={[
-          styles.sectionTitle,
-          {
-            color: isDarkMode ? Colors.white : Colors.black,
-          },
-        ]}>
-        {title}
-      </Text>
-      <Text
-        style={[
-          styles.sectionDescription,
-          {
-            color: isDarkMode ? Colors.light : Colors.dark,
-          },
-        ]}>
-        {children}
-      </Text>
-    </View>
-  );
-}
-
-function App(): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
-  };
-
-  return (
-    <SafeAreaView style={backgroundStyle}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={backgroundStyle.backgroundColor}
-      />
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        style={backgroundStyle}>
-        <Header />
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-          }}>
-          <Section title="Step One">
-            Edit <Text style={styles.highlight}>App.tsx</Text> to change this
-            screen and then come back to see your edits.
-          </Section>
-          <Section title="See Your Changes">
-            <ReloadInstructions />
-          </Section>
-          <Section title="Debug">
-            <DebugInstructions />
-          </Section>
-          <Section title="Learn More">
-            Read the docs to discover what to do next:
-          </Section>
-          <LearnMoreLinks />
-        </View>
-      </ScrollView>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.waveformContainer}>
+        {audioPath && <Waveform ref={waveformRef} mode="live" />}
+      </View>
+      <View style={styles.buttonContainer}>
+        <Button title="Play" onPress={playAudio} />
+        <Button title="Pause" onPress={pauseAudio} />
+        <Button title="Stop" onPress={stopAudio} />
+        <Button title="Start Recording" onPress={startRecording} />
+        <Button title="Stop Recording" onPress={stopRecording} />
+      </View>
     </SafeAreaView>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
-  sectionContainer: {
-    marginTop: 32,
-    paddingHorizontal: 24,
+  container: {
+    flex: 1,
   },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '600',
+  waveformContainer: {
+    flex: 1,
+    justifyContent: "center",
+    paddingHorizontal: 20,
   },
-  sectionDescription: {
-    marginTop: 8,
-    fontSize: 18,
-    fontWeight: '400',
+  buttonContainer: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    padding: 10,
   },
-  highlight: {
-    fontWeight: '700',
-  },
-});
+})
 
-export default App;
+export default App
